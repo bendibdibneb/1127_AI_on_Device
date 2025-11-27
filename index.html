@@ -286,51 +286,65 @@
     </script>
 </body>
 </html> -->
-
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>On-Device AI 物件辨識</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.11.0/dist/tf.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+    <title>AI Emoji 翻譯機</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
 
     <style>
+        :root {
+            --primary-color: #FFD700;
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+        }
+
         body {
             margin: 0;
             padding: 0;
-            background-color: #000;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            overflow: hidden; /* 防止捲動 */
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            overflow: hidden; /* 防止滾動 */
+            height: 100vh;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
         }
 
-        /* 視訊與畫布的容器 */
-        #cam-container {
+        /* 視訊容器 */
+        #camera-container {
             position: relative;
             width: 100%;
             height: 100%;
             display: flex;
             justify-content: center;
             align-items: center;
-            background: #111;
+            background: #000;
         }
 
-        /* 影像與 Canvas 重疊 */
-        video, canvas {
+        video {
             position: absolute;
             width: 100%;
             height: 100%;
             object-fit: cover; /* 讓畫面填滿手機螢幕 */
+            z-index: 1;
         }
 
-        /* 介面覆蓋層 (UI Overlay) */
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2; /* 畫布在影片之上 */
+        }
+
+        /* UI 介面層 */
         #ui-layer {
             position: absolute;
             top: 0;
@@ -342,50 +356,50 @@
             display: flex;
             flex-direction: column;
             justify-content: space-between;
+        }
+
+        /* 頂部標題 */
+        .header {
             padding: 20px;
-            box-sizing: border-box;
-        }
-
-        /* 狀態列 */
-        .status-bar {
-            background: rgba(0, 0, 0, 0.6);
-            color: #00ffcc;
-            padding: 10px 15px;
-            border-radius: 20px;
-            font-size: 14px;
-            backdrop-filter: blur(5px);
-            align-self: flex-start;
-            pointer-events: auto;
-        }
-
-        /* 啟動按鈕 / 載入畫面 */
-        #start-screen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.85);
-            z-index: 20;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
+            background: linear-gradient(180deg, rgba(0,0,0,0.7) 0%, rgba(0,0,0,0) 100%);
             text-align: center;
-            color: white;
+        }
+        
+        .header h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            font-weight: 600;
+        }
+
+        .status-badge {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+        }
+
+        /* 底部控制區 */
+        .controls {
+            padding: 30px;
+            text-align: center;
+            pointer-events: auto; /* 恢復按鈕點擊 */
+            background: linear-gradient(0deg, rgba(0,0,0,0.8) 0%, rgba(0,0,0,0) 100%);
         }
 
         button {
-            background: #007aff;
-            color: white;
+            background-color: var(--primary-color);
+            color: #000;
             border: none;
-            padding: 15px 40px;
-            font-size: 18px;
-            border-radius: 30px;
-            cursor: pointer;
-            margin-top: 20px;
+            padding: 15px 30px;
+            font-size: 1rem;
             font-weight: bold;
-            box-shadow: 0 4px 15px rgba(0,122,255,0.4);
+            border-radius: 50px;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 215, 0, 0.3);
             transition: transform 0.2s;
         }
 
@@ -394,184 +408,218 @@
         }
 
         button:disabled {
-            background: #555;
+            background-color: #555;
             color: #888;
             cursor: not-allowed;
             box-shadow: none;
         }
 
+        /* 載入動畫 */
         .loader {
-            border: 4px solid #f3f3f3;
-            border-top: 4px solid #00ffcc;
+            display: none;
+            width: 24px;
+            height: 24px;
+            border: 3px solid #FFF;
+            border-bottom-color: transparent;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
-            display: none; /* 預設隱藏 */
+            animation: rotation 1s linear infinite;
+            margin: 0 auto;
         }
 
-        @keyframes spin {
+        @keyframes rotation {
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
 
-        /* 偵測框樣式設定 (由 JS 動態繪製，此處為文字樣式) */
-        .prediction-text {
-            font-weight: bold;
-            text-transform: uppercase;
-        }
     </style>
 </head>
 <body>
 
-    <div id="cam-container">
+    <div id="camera-container">
         <video id="video" playsinline muted autoplay></video>
-        <canvas id="canvas"></canvas>
+        <canvas id="output"></canvas>
     </div>
 
     <div id="ui-layer">
-        <div class="status-bar" id="status">等待啟動...</div>
-    </div>
-
-    <div id="start-screen">
-        <div class="loader" id="loader"></div>
-        <h2 id="loading-text">準備載入 AI 模型</h2>
-        <p style="font-size: 0.9em; color: #aaa; margin: 0 20px;">
-            請允許相機權限。<br>模型載入後可離線使用。
-        </p>
-        <button id="btn-start">開始辨識</button>
+        <div class="header">
+            <h1>🌍 AI Emoji 翻譯機</h1>
+            <div id="status" class="status-badge">等待啟動...</div>
+        </div>
+        <div class="controls">
+            <button id="startBtn" onclick="init()">
+                <span id="btnText">啟動相機</span>
+                <div class="loader" id="loader"></div>
+            </button>
+            <p style="font-size: 12px; color: #aaa; margin-top: 10px;">
+                首次需載入模型，之後可離線使用
+            </p>
+        </div>
     </div>
 
     <script>
-        // DOM 元素
-        const video = document.getElementById('video');
-        const canvas = document.getElementById('canvas');
-        const ctx = canvas.getContext('2d');
-        const btnStart = document.getElementById('btn-start');
-        const statusText = document.getElementById('status');
-        const startScreen = document.getElementById('start-screen');
-        const loader = document.getElementById('loader');
-        const loadingText = document.getElementById('loading-text');
+        // 1. Emoji 字典：將英文標籤轉換為 Emoji
+        const emojiMap = {
+            'person': '🧑',
+            'bicycle': '🚲',
+            'car': '🚗',
+            'motorcycle': '🏍️',
+            'airplane': '✈️',
+            'bus': '🚌',
+            'train': '🚆',
+            'truck': '🚚',
+            'boat': '🛥️',
+            'traffic light': '🚦',
+            'fire hydrant': '🧯',
+            'stop sign': '🛑',
+            'bench': '🪑',
+            'bird': '🐦',
+            'cat': '🐱',
+            'dog': '🐶',
+            'horse': '🐴',
+            'sheep': '🐑',
+            'cow': '🐄',
+            'elephant': '🐘',
+            'bear': '🐻',
+            'zebra': '🦓',
+            'giraffe': '🦒',
+            'backpack': '🎒',
+            'umbrella': '☂️',
+            'handbag': '👜',
+            'tie': '👔',
+            'suitcase': '🧳',
+            'frisbee': '🥏',
+            'skis': '🎿',
+            'snowboard': '🏂',
+            'sports ball': '⚽',
+            'kite': '🪁',
+            'baseball bat': '⚾',
+            'baseball glove': '🧤',
+            'skateboard': '🛹',
+            'surfboard': '🏄',
+            'tennis racket': '🎾',
+            'bottle': '🍾',
+            'wine glass': '🍷',
+            'cup': '☕',
+            'fork': '🍴',
+            'knife': '🔪',
+            'spoon': '🥄',
+            'bowl': '🥣',
+            'banana': '🍌',
+            'apple': '🍎',
+            'sandwich': '🥪',
+            'orange': '🍊',
+            'broccoli': '🥦',
+            'carrot': '🥕',
+            'hot dog': '🌭',
+            'pizza': '🍕',
+            'donut': '🍩',
+            'cake': '🍰',
+            'chair': '🪑',
+            'couch': '🛋️',
+            'potted plant': '🪴',
+            'bed': '🛏️',
+            'dining table': '🍽️',
+            'toilet': '🚽',
+            'tv': '📺',
+            'laptop': '💻',
+            'mouse': '🖱️',
+            'remote': '📱',
+            'keyboard': '⌨️',
+            'cell phone': '📱',
+            'microwave': ' microwave',
+            'oven': 'oven',
+            'toaster': '🍞',
+            'sink': '🚰',
+            'refrigerator': '❄️',
+            'book': '📖',
+            'clock': '⏰',
+            'vase': '⚱️',
+            'scissors': '✂️',
+            'teddy bear': '🧸',
+            'hair drier': '💨',
+            'toothbrush': '🪥'
+        };
 
-        let model = undefined;
+        let model = null;
         let isDetecting = false;
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('output');
+        const ctx = canvas.getContext('2d');
+        const statusEl = document.getElementById('status');
+        const startBtn = document.getElementById('startBtn');
+        const btnText = document.getElementById('btnText');
+        const loader = document.getElementById('loader');
 
-        // 1. 初始化：綁定按鈕事件
-        btnStart.addEventListener('click', async () => {
-            btnStart.style.display = 'none'; // 隱藏按鈕
-            loader.style.display = 'block';  // 顯示讀取圈圈
-            loadingText.innerText = "正在載入 AI 模型 (約 2-5 MB)...";
-            
+        // 2. 初始化函數
+        async function init() {
+            // UI 更新
+            startBtn.disabled = true;
+            btnText.style.display = 'none';
+            loader.style.display = 'block';
+            statusEl.innerText = "正在載入 AI 模型...";
+
             try {
-                await initAI();
+                // 載入模型 (Coco-SSD)
+                // 注意：這裡需要網路，載入後就會存入瀏覽器快取/記憶體
+                if (!model) {
+                    model = await cocoSsd.load();
+                }
+
+                statusEl.innerText = "請求相機權限...";
+
+                // 設定相機
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: false,
+                    video: {
+                        facingMode: 'environment' // 優先使用後鏡頭
+                    }
+                });
+
+                video.srcObject = stream;
+
+                // 等待影片資料載入完畢，調整 Canvas 尺寸
+                video.onloadedmetadata = () => {
+                    video.play();
+                    adjustCanvasSize();
+                    statusEl.innerText = "偵測中 (可開啟飛航模式)";
+                    statusEl.style.background = "rgba(0, 255, 0, 0.3)";
+                    
+                    // 隱藏按鈕，進入全螢幕體驗
+                    document.querySelector('.controls').style.display = 'none';
+                    
+                    // 開始偵測迴圈
+                    detectFrame();
+                };
+
             } catch (error) {
                 console.error(error);
-                loadingText.innerText = "錯誤: " + error.message;
+                statusEl.innerText = "發生錯誤: " + error.message;
+                startBtn.disabled = false;
+                btnText.style.display = 'inline';
                 loader.style.display = 'none';
-                btnStart.style.display = 'inline-block';
-                btnStart.innerText = "重試";
+                alert("無法啟動相機或載入模型。請確認您使用 HTTPS 連線或是在安全環境下。");
             }
-        });
-
-        // 2. 核心初始化函式
-        async function initAI() {
-            // A. 載入 COCO-SSD 模型
-            // 此模型會自動下載並存入瀏覽器快取
-            model = await cocoSsd.load();
-            loadingText.innerText = "模型載入完成，正在啟動相機...";
-
-            // B. 啟動相機
-            await setupCamera();
-            
-            // C. 調整 Canvas 尺寸並開始偵測
-            startScreen.style.display = 'none'; // 隱藏啟動畫面
-            statusText.innerText = "AI 運作中 - On Device";
-            
-            resizeCanvas();
-            predictLoop();
-
-            // 監聽視窗大小改變 (旋轉手機時)
-            window.addEventListener('resize', resizeCanvas);
         }
 
-        // 3. 設定相機
-        async function setupCamera() {
-            const constraints = {
-                audio: false,
-                video: {
-                    facingMode: 'environment', // 優先使用後鏡頭
-                    // 為了效能，不要設定太高的解析度，640x480 對手機辨識來說足夠
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 }
-                }
-            };
-
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            video.srcObject = stream;
-
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    resolve(video);
-                };
-            });
-        }
-
-        // 4. 調整 Canvas 尺寸以匹配 Video 顯示大小
-        function resizeCanvas() {
+        // 3. 調整 Canvas 大小以符合 Video
+        function adjustCanvasSize() {
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
-            
-            // 因為 CSS 用 object-fit: cover 強制填滿，
-            // 這裡我們讓 Canvas 的解析度跟隨影片原始解析度，
-            // CSS 會負責把 Canvas 拉伸到跟 Video 一樣大。
         }
 
-        // 5. 預測循環 (Loop)
-        async function predictLoop() {
-            if (!model) return;
+        // 4. 偵測迴圈 (核心邏輯)
+        async function detectFrame() {
+            // 確保影片正在播放且模型已載入
+            if (video.readyState === video.HAVE_ENOUGH_DATA && model) {
+                // 執行推論 (Inference) - 這是 On-Device 的！
+                const predictions = await model.detect(video);
+                
+                // 清除上一幀的繪圖
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 進行預測
-            // detect 參數：影像來源, maxNumBoxes, minScore
-            const predictions = await model.detect(video, 20, 0.5);
-
-            // 繪製結果
-            drawPredictions(predictions);
-
-            // 使用 requestAnimationFrame 達到最順暢的 FPS
-            requestAnimationFrame(predictLoop);
-        }
-
-        // 6. 繪製方框與標籤
-        function drawPredictions(predictions) {
-            // 清空畫布
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            const font = "16px sans-serif";
-            ctx.font = font;
-            ctx.textBaseline = "top";
-
-            predictions.forEach(prediction => {
-                const [x, y, width, height] = prediction['bbox'];
-                const text = prediction['class'];
-                const score = Math.round(prediction['score'] * 100) + '%';
-
-                // 畫框框
-                ctx.strokeStyle = "#00FFFF";
-                ctx.lineWidth = 4;
-                ctx.strokeRect(x, y, width, height);
-
-                // 畫背景標籤 (半透明黑底)
-                const textWidth = ctx.measureText(text + " " + score).width;
-                const textHeight = 16; // 根據字體大小估算
-                ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
-                ctx.fillRect(x, y, textWidth + 10, textHeight + 10);
-
-                // 畫文字
-                ctx.fillStyle = "#FFFFFF";
-                ctx.fillText(text + " - " + score, x + 5, y + 5);
-            });
-        }
-    </script>
-</body>
-</html>
+                // 繪製新的預測結果
+                predictions.forEach(prediction => {
+                    // 過濾信心度太低的結果
+                    if (prediction.score > 0.6) {
+                        drawPrediction(prediction);
+                    }
