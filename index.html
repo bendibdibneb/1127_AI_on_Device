@@ -286,6 +286,8 @@
     </script>
 </body>
 </html> -->
+
+
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
@@ -623,3 +625,47 @@
                     if (prediction.score > 0.6) {
                         drawPrediction(prediction);
                     }
+                });
+            }
+
+            // 呼叫下一幀
+            requestAnimationFrame(detectFrame);
+        }
+
+        // 5. 繪製結果
+        function drawPrediction(prediction) {
+            const [x, y, width, height] = prediction.bbox;
+            const text = prediction.class;
+            const emoji = emojiMap[text] || '❓'; // 如果找不到對應的 Emoji，顯示問號
+
+            // 設定樣式
+            ctx.strokeStyle = '#FFD700';
+            ctx.lineWidth = 4;
+            ctx.fillStyle = '#FFD700';
+
+            // 畫框框
+            ctx.beginPath();
+            ctx.roundRect(x, y, width, height, 10);
+            ctx.stroke();
+
+            // 畫標籤背景
+            const fontSize = Math.max(20, width / 5); // 動態調整字體大小
+            ctx.font = `bold ${fontSize}px Arial`;
+            const textWidth = ctx.measureText(emoji + " " + text).width;
+            
+            ctx.fillStyle = "rgba(0, 0, 0, 0.7)";
+            ctx.fillRect(x, y - fontSize - 10, textWidth + 20, fontSize + 10);
+
+            // 畫文字
+            ctx.fillStyle = '#FFFFFF';
+            ctx.fillText(emoji + " " + text.toUpperCase(), x + 10, y - 10);
+        }
+        
+        // 監聽視窗大小改變，重新調整 Canvas
+        window.addEventListener('resize', () => {
+             if(video.srcObject) adjustCanvasSize();
+        });
+
+    </script>
+</body>
+</html>
